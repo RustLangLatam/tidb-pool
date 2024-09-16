@@ -10,7 +10,6 @@
 //! The TiDB configuration (`TiDBConfig`) supports features like connection pooling, SSL,
 //! and customizable timeouts for optimized performance and resource management.
 
-
 /// Main configuration for the application.
 ///
 /// The `Config` struct holds the overall configuration needed by the application,
