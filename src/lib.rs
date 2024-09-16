@@ -6,8 +6,9 @@ extern crate serde;
 extern crate tracing;
 
 pub use config::TiDBConfig;
-pub use count::*;
-pub use id::*;
+pub use count::Count;
+pub use id::ID;
+pub use pool::build_pool_from_config;
 pub use tables_family::*;
 
 mod config;
