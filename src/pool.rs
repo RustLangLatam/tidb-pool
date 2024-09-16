@@ -1,11 +1,10 @@
 use std::time::Duration;
 
-use sqlx::{
-    mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode},
-    ConnectOptions, Error, MySqlPool,
-};
+use sqlx::{mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode}, ConnectOptions, Error, MySqlPool};
 
 use crate::config::TiDBConfig;
+
+pub type TidbPool = MySqlPool;
 
 /// Creates a connection pool to TiDB using the provided configuration.
 ///
@@ -21,7 +20,7 @@ use crate::config::TiDBConfig;
 /// - `config`: A `TiDBConfig` instance containing the connection and pool settings.
 ///
 /// ## Returns:
-/// - `Result<MySqlPool, Error>`: Returns the constructed `MySqlPool` or an error if
+/// - `Result<TidbPool, Error>`: Returns the constructed `TidbPool` or an error if
 ///   the pool cannot be created.
 ///
 /// ## Example:
@@ -30,7 +29,7 @@ use crate::config::TiDBConfig;
 /// let pool = build_pool_from_config(config).await?;
 /// ```
 #[tracing::instrument(name = "tidb_svc", err, skip(config))]
-pub async fn build_pool_from_config(config: TiDBConfig) -> Result<MySqlPool, Error> {
+pub async fn build_pool_from_config(config: TiDBConfig) -> Result<TidbPool, Error> {
     info!("Initializing connection pool to TiDB...");
 
     // Log the database host for debugging purposes

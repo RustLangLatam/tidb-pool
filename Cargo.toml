@@ -1,6 +1,6 @@
 [package]
 name = "tidb_pool"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Rust crate that creates a MySQL connection pool for TiDB using a TOML configuration file."
 license = "MIT"
 repository = "https://github.com/your-username/tidb_pool"
