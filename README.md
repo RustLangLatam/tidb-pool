@@ -16,7 +16,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tidb-pool = "0.1.0"
+tidb-pool = "0.1.3"
 ```
 
 Then, include the crate in your project:
