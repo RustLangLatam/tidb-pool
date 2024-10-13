@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use sqlx::{mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode}, ConnectOptions, Error, MySqlPool};
+use sqlx::{
+    mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode},
+    ConnectOptions, Error, MySqlPool,
+};
 
 use crate::config::TiDBConfig;
 
@@ -45,7 +48,11 @@ pub async fn build_pool_from_config(config: TiDBConfig) -> Result<TidbPool, Erro
         .database(config.database_name.as_str())
         .username(config.username.as_str())
         .password(config.password.as_str())
-        .statement_cache_capacity(1000); // Optimize by caching SQL statements
+        .statement_cache_capacity(if config.pool_options.statement_cache_capacity > 0 {
+            config.pool_options.statement_cache_capacity
+        } else {
+            1000
+        }); // Optimize by caching SQL statements
 
     // If SSL is enabled (ssl_ca is set), configure SSL options
     if let Some(file_name) = config.ssl_ca {
@@ -78,17 +85,20 @@ pub async fn build_pool_from_config(config: TiDBConfig) -> Result<TidbPool, Erro
         // Immediate connection pool: Establish connections right away
         pool_options.connect_with(conn_options.clone()).await
     }
-        .map_err(|err| {
-            // Handle connection errors and log the failure
-            error!(
+    .map_err(|err| {
+        // Handle connection errors and log the failure
+        error!(
             "Failed to connect to TiDB server at {}:{}",
             config.host, port
         );
-            err
-        })?;
+        err
+    })?;
 
     // Successfully initialized the pool
-    info!("TiDB connection pool initialized successfully. Lazy mode: {}", config.pool_options.is_lazy);
+    info!(
+        "TiDB connection pool initialized successfully. Lazy mode: {}",
+        config.pool_options.is_lazy
+    );
     Ok(pool_db)
 }
 
@@ -103,7 +113,10 @@ fn log_pool_settings(pool_options: &MySqlPoolOptions) {
     info!("Connection pool settings:");
     info!("  Max connections: {}", pool_options.get_max_connections());
     info!("  Min connections: {}", pool_options.get_min_connections());
-    info!("  Acquire timeout: {:?}", pool_options.get_acquire_timeout());
+    info!(
+        "  Acquire timeout: {:?}",
+        pool_options.get_acquire_timeout()
+    );
     info!("  Idle timeout: {:?}", pool_options.get_idle_timeout());
     info!("  Max lifetime: {:?}", pool_options.get_max_lifetime());
 }

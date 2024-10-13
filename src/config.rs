@@ -10,6 +10,8 @@
 //! The TiDB configuration (`TiDBConfig`) supports features like connection pooling, SSL,
 //! and customizable timeouts for optimized performance and resource management.
 
+use sqlx::Pool;
+
 /// Main configuration for the application.
 ///
 /// The `Config` struct holds the overall configuration needed by the application,
@@ -107,7 +109,8 @@ impl TiDBConfig {
     ///
     /// # Example
     /// ```
-    /// let config = tidb_poll::TiDBConfig {
+    ///
+    /// let config = tidb_pool::TiDBConfig {
     ///     host: "127.0.0.1".into(),
     ///     port: None,
     ///     ..Default::default()
@@ -169,44 +172,104 @@ fn default_is_lazy() -> bool {
     true
 }
 
+/// Default value for `statement_cache_capacity`.
+fn default_statement_cache_capacity() -> usize {
+    100
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PoolOptions {
-    /// Maximum number of connections that the pool will maintain.
+    /// Set the maximum number of connections that this pool should maintain.
+    ///
+    /// Be mindful of the connection limits for your database as well as other applications
+    /// which may want to connect to the same database (or even multiple instances of the same
+    /// application in high-availability deployments).
     ///
     /// Defaults to 10.
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
 
-    /// Minimum number of connections that the pool will maintain.
+    /// Set the minimum number of connections to maintain at all times.
+    ///
+    /// When the pool is built, this many connections will be automatically spun up.
+    ///
+    /// If any connection is reaped by [`max_lifetime`] or [`idle_timeout`], or explicitly closed,
+    /// and it brings the connection count below this amount, a new connection will be opened to
+    /// replace it.
+    ///
+    /// This is only done on a best-effort basis, however. The routine that maintains this value
+    /// has a deadline so it doesn't wait forever if the database is being slow or returning errors.
+    ///
+    /// This value is clamped internally to not exceed [`max_connections`].
+    ///
+    /// We've chosen not to assert `min_connections <= max_connections` anywhere
+    /// because it shouldn't break anything internally if the condition doesn't hold,
+    /// and if the application allows either value to be dynamically set
+    /// then it should be checking this condition itself and returning
+    /// a nicer error than a panic anyway.
     ///
     /// Defaults to 1.
     #[serde(default = "default_min_connections")]
     pub min_connections: u32,
 
-    /// Timeout (in seconds) for acquiring a connection from the pool.
+    /// Set the maximum amount of time to spend waiting for a connection in [`Pool::acquire()`].
+    ///
+    /// Caps the total amount of time `Pool::acquire()` can spend waiting across multiple phases:
+    ///
+    /// * First, it may need to wait for a permit from the semaphore, which grants it the privilege
+    ///   of opening a connection or popping one from the idle queue.
+    /// * If an existing idle connection is acquired, by default it will be checked for liveness
+    ///   and integrity before being returned, which may require executing a command on the
+    ///   connection. This can be disabled with [`test_before_acquire(false)`][Self::test_before_acquire].
+    ///     * If [`before_acquire`][Self::before_acquire] is set, that will also be executed.
+    /// * If a new connection needs to be opened, that will obviously require I/O, handshaking,
+    ///   and initialization commands.
+    ///     * If [`after_connect`][Self::after_connect] is set, that will also be executed.
     ///
     /// Defaults to 30 seconds.
     #[serde(default = "default_acquire_timeout")]
     pub acquire_timeout: u64,
 
-    /// Timeout (in seconds) after which idle connections will be closed.
+    /// Set a maximum idle duration for individual connections.
+    ///
+    /// Any connection that remains in the idle queue longer than this will be closed.
+    ///
+    /// For usage-based database server billing, this can be a cost saver.
     ///
     /// Defaults to 300 seconds (5 minutes).
     #[serde(default = "default_idle_timeout")]
     pub idle_timeout: u64,
 
     /// Maximum lifetime (in seconds) of a connection in the pool.
-    ///
-    /// Defaults to 1800 seconds (30 minutes).
+    /// Set the maximum lifetime of individual connections.
+    /// Any connection with a lifetime greater than this will be closed.
+    /// When set to None, all connections live until either reaped by idle_timeout or explicitly disconnected.
+    /// Infinite connections are not recommended due to the unfortunate reality of memory/ resource leaks on the database-side.
+    /// It is better to retire connections periodically (even if only once daily) to allow the database the opportunity
+    /// to clean up data structures (parse trees, query metadata caches, thread-local storage, etc.) that are associated with a session.
+
+    // Defaults to 1800 seconds (30 minutes).
     #[serde(default = "default_max_lifetime")]
     pub max_lifetime: u64,
 
-    /// Whether the pool should lazily initialize connections.
+    /// Create a new pool from this `PoolOptions`, but don't open any connections right now.
+    ///
+    /// If [`min_connections`][Self::min_connections] is set, a background task will be spawned to
+    /// optimistically establish that many connections for the pool.
     ///
     /// Defaults to `true`.
     #[serde(default = "default_is_lazy")]
     pub is_lazy: bool,
+
+    /// Sets the capacity of the connection's statement cache in a number of stored
+    /// distinct statements. Caching is handled using LRU, meaning when the
+    /// amount of queries hits the defined limit, the oldest statement will get
+    /// dropped.
+    ///
+    /// The default cache capacity is 100 statements.
+    #[serde(default = "default_statement_cache_capacity")]
+    pub statement_cache_capacity: usize,
 }
 
 impl Default for PoolOptions {
@@ -218,6 +281,7 @@ impl Default for PoolOptions {
             idle_timeout: default_idle_timeout(),
             max_lifetime: default_max_lifetime(),
             is_lazy: default_is_lazy(),
+            statement_cache_capacity: 100,
         }
     }
 }
@@ -292,6 +356,7 @@ mod tests {
             idle_timeout: 1200,
             max_lifetime: 7200,
             is_lazy: false,
+            statement_cache_capacity: 100,
         };
 
         let toml_data = toml::to_string(&pool_options).expect("Failed to serialize to TOML");
@@ -392,6 +457,7 @@ isLazy = false
                 idle_timeout: 300,
                 max_lifetime: 3600,
                 is_lazy: true,
+                statement_cache_capacity: 100,
             },
             ssl_ca: None,
         };
