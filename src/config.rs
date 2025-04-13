@@ -92,7 +92,7 @@ pub struct TiDBConfig {
     pub database_name: String,
 
     /// Connection pooling options for managing connections to TiDB.
-    #[serde(rename = "pool_options", default)]
+    #[serde(default)]
     pub pool_options: PoolOptions,
 
     /// Path to the SSL CA certificate for encrypted connections.
@@ -368,6 +368,7 @@ acquireTimeout = 60
 idleTimeout = 1200
 maxLifetime = 7200
 isLazy = false
+statementCacheCapacity = 100
 "#
             .trim();
 
@@ -416,7 +417,7 @@ isLazy = false
         password = "secret"
         databaseName = "mydb"
 
-        [pool_options]
+        [poolOptions]
         maxConnections = 10
         minConnections = 5
         acquireTimeout = 30
@@ -471,7 +472,7 @@ username = "admin"
 password = "secret"
 databaseName = "mydb"
 
-[pool_options]
+[poolOptions]
 maxConnections = 10
 minConnections = 5
 acquireTimeout = 30
@@ -493,7 +494,7 @@ isLazy = true
         password = "secret"
         databaseName = "mydb"
 
-        [pool_options]
+        [poolOptions]
         isLazy = true
         "#;
 
