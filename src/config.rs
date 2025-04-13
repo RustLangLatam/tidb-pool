@@ -10,8 +10,6 @@
 //! The TiDB configuration (`TiDBConfig`) supports features like connection pooling, SSL,
 //! and customizable timeouts for optimized performance and resource management.
 
-use sqlx::Pool;
-
 /// Main configuration for the application.
 ///
 /// The `Config` struct holds the overall configuration needed by the application,
@@ -479,6 +477,7 @@ acquireTimeout = 30
 idleTimeout = 300
 maxLifetime = 3600
 isLazy = true
+statementCacheCapacity = 100
 "#
             .trim();
 
